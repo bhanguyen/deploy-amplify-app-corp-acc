@@ -1,27 +1,24 @@
 import { defineBackend } from '@aws-amplify/backend';
-import { auth } from './auth/resource.js';
-import { data } from './data/resource.js';
-import { PermissionsBoundary } from 'aws-cdk-lib';
-import * as iam from 'aws-cdk-lib/aws-iam';
+import { auth } from './auth/resource';
+import { data } from './data/resource';
+import { Aspects, IAspect } from 'aws-cdk-lib';
+import { CfnRole } from 'aws-cdk-lib/aws-iam';
+import { IConstruct } from 'constructs';
 
-const backend = defineBackend({
-  auth,
-  data,
-});
+const backend = defineBackend({ auth, data });
 
-// Disable self-signup - only admins can create users
-const { cfnUserPool } = backend.auth.resources.cfnResources;
-cfnUserPool.adminCreateUserConfig = {
-  allowAdminCreateUserOnly: true,
-};
+// Apply TMR Level 2 permission boundary to all IAM roles in Amplify stacks
+class TmrPermissionsBoundary implements IAspect {
+  visit(node: IConstruct): void {
+    if (node instanceof CfnRole) {
+      node.addPropertyOverride(
+        'PermissionsBoundary',
+        `arn:aws:iam::${(node.stack).account}:policy/tmr-boundary-level2`
+      );
+    }
+  }
+}
 
-// Apply TMR Level 2 boundary to all Amplify application stacks
 [backend.auth.stack, backend.data.stack].forEach((stack) => {
-  PermissionsBoundary.of(stack).apply(
-    iam.ManagedPolicy.fromManagedPolicyName(
-      stack,
-      'TmrLevelTwoBoundary',
-      'tmr-boundary-level2'   // Level 2 = application roles
-    )
-  );
+  Aspects.of(stack).add(new TmrPermissionsBoundary());
 });
