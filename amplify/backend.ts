@@ -1,7 +1,7 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource.js';
 import { data } from './data/resource.js';
-import * as cdk from 'aws-cdk-lib';
+import { PermissionsBoundary } from 'aws-cdk-lib';
 import * as iam from 'aws-cdk-lib/aws-iam';
 
 const backend = defineBackend({
