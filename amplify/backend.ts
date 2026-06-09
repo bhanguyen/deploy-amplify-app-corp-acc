@@ -17,7 +17,7 @@ cfnUserPool.adminCreateUserConfig = {
 
 // Apply TMR Level 2 boundary to all Amplify application stacks
 [backend.auth.stack, backend.data.stack].forEach((stack) => {
-  cdk.PermissionsBoundary.of(stack).apply(
+  PermissionsBoundary.of(stack).apply(
     iam.ManagedPolicy.fromManagedPolicyName(
       stack,
       'TmrLevelTwoBoundary',
