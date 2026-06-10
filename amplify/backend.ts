@@ -7,13 +7,13 @@ import { IConstruct } from 'constructs';
 
 const backend = defineBackend({ auth, data });
 
-// Apply TMR Level 2 permission boundary to all IAM roles in Amplify stacks
+// Apply TMR Level 3 permission boundary to all IAM roles in Amplify stacks
 class TmrPermissionsBoundary implements IAspect {
   visit(node: IConstruct): void {
     if (node instanceof CfnRole) {
       node.addPropertyOverride(
         'PermissionsBoundary',
-        `arn:aws:iam::${(node.stack).account}:policy/tmr-boundary-level2`
+        `arn:aws:iam::${node.stack.account}:policy/tmr-boundary-level3`
       );
     }
   }

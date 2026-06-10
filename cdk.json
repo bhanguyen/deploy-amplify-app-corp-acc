@@ -1,7 +1,7 @@
 {
   "context": {
     "@aws-cdk/core:permissionsBoundary": {
-      "name": "tmr-boundary-level2"
+      "name": "tmr-boundary-level3"
     }
   }
 }
