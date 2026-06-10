@@ -7,9 +7,7 @@ import { IConstruct } from 'constructs';
 
 const backend = defineBackend({ auth, data });
 
-// Apply TMR Level 3 permission boundary to all IAM roles in Amplify stacks.
-// CDK_DEFAULT_ACCOUNT is set at build time via amplify.yml so node.stack.account
-// resolves to your account (471112770810), not the CodeBuild role's account.
+// Apply TMR Level 3 permission boundary to all IAM roles in Amplify stacks
 class TmrPermissionsBoundary implements IAspect {
   visit(node: IConstruct): void {
     if (node instanceof CfnRole) {
