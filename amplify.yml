@@ -4,6 +4,10 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
+        # CDK_DEFAULT_ACCOUNT/REGION tell CDK which account to target for bootstrap
+        # and stack deployment. CDK_TARGET_ACCOUNT is set in Amplify App environment variables.
+        - export CDK_DEFAULT_ACCOUNT=$CDK_TARGET_ACCOUNT
+        - export CDK_DEFAULT_REGION=${CDK_TARGET_REGION:-ap-southeast-2}
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
 frontend:
   phases:

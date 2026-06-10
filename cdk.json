@@ -1,4 +1,5 @@
 {
+  "app": "npx ts-node amplify/backend.ts",
   "context": {
     "@aws-cdk/core:permissionsBoundary": {
       "name": "tmr-boundary-level3"
