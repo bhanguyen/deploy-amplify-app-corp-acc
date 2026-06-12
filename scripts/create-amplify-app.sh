@@ -21,9 +21,10 @@
 
 set -euo pipefail
 
-BOUNDARY_NAME="tmr-boundary-level3"   # fixed by TMR governance
-PLATFORM="WEB_COMPUTE"                # Next.js SSR
+BOUNDARY_NAME="tmr-boundary-level3"        # fixed by TMR governance
+PLATFORM="WEB_COMPUTE"                      # Next.js SSR
 DEFAULT_REPO="https://github.com/bhanguyen/deploy-amplify-app-corp-acc"
+SHARED_AUTH_STACK="tau-b2032-shared-cognito"   # shared Cognito (referenceAuth)
 
 # ---------- AWS profile (derives account + region) ----------
 if [[ -z "${AWS_PROFILE:-}" ]]; then
@@ -68,6 +69,25 @@ aws iam get-role --role-name "cdk-hnb659fds-deploy-role-${ACCOUNT_ID}-${REGION}"
   exit 1
 }
 
+# ---------- Shared Cognito outputs (referenceAuth needs these as build env vars) ----------
+echo ">> Reading shared Cognito outputs from stack '$SHARED_AUTH_STACK'"
+get_out() {
+  aws cloudformation describe-stacks --stack-name "$SHARED_AUTH_STACK" \
+    --query "Stacks[0].Outputs[?OutputKey=='$1'].OutputValue | [0]" --output text 2>/dev/null
+}
+SHARED_USER_POOL_ID="$(get_out UserPoolId)"
+SHARED_USER_POOL_CLIENT_ID="$(get_out UserPoolClientId)"
+SHARED_IDENTITY_POOL_ID="$(get_out IdentityPoolId)"
+SHARED_AUTH_ROLE_ARN="$(get_out AuthRoleArn)"
+SHARED_UNAUTH_ROLE_ARN="$(get_out UnauthRoleArn)"
+for v in SHARED_USER_POOL_ID SHARED_USER_POOL_CLIENT_ID SHARED_IDENTITY_POOL_ID SHARED_AUTH_ROLE_ARN SHARED_UNAUTH_ROLE_ARN; do
+  [[ -n "${!v}" && "${!v}" != "None" ]] || {
+    echo "ERROR: shared auth stack '$SHARED_AUTH_STACK' is missing output for $v." >&2
+    echo "       Deploy infra/shared-cognito.yaml first." >&2
+    exit 1
+  }
+done
+
 # ---------- Confirm ----------
 cat <<SUMMARY
 
@@ -78,6 +98,7 @@ cat <<SUMMARY
   Region   : $REGION
   Platform : $PLATFORM
   Boundary : $BOUNDARY_NAME
+  Auth     : shared pool $SHARED_USER_POOL_ID (referenceAuth)
 SUMMARY
 read -rp "Proceed? [y/N]: " OK
 [[ "$OK" == "y" || "$OK" == "Y" ]] || { echo "Aborted."; exit 0; }
@@ -89,6 +110,7 @@ APP_ID="$(aws amplify create-app \
   --platform "$PLATFORM" \
   --repository "$REPO_URL" \
   --access-token "$GITHUB_ACCESS_TOKEN" \
+  --environment-variables "SHARED_USER_POOL_ID=${SHARED_USER_POOL_ID},SHARED_USER_POOL_CLIENT_ID=${SHARED_USER_POOL_CLIENT_ID},SHARED_IDENTITY_POOL_ID=${SHARED_IDENTITY_POOL_ID},SHARED_AUTH_ROLE_ARN=${SHARED_AUTH_ROLE_ARN},SHARED_UNAUTH_ROLE_ARN=${SHARED_UNAUTH_ROLE_ARN}" \
   --query "app.appId" --output text)"
 echo ">> App created: $APP_ID"
 

@@ -1,0 +1,126 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >
+  Shared Cognito for Amplify Gen 2 apps in the TMR account. One user pool +
+  app client + identity pool + authenticated/unauthenticated IAM roles, all
+  bounded by tmr-boundary-level3. Amplify apps reference these via referenceAuth
+  (amplify/auth/resource.ts) instead of each provisioning its own pool.
+  Deploy once; manage independently of the per-app Amplify backends.
+
+Parameters:
+  NamePrefix:
+    Type: String
+    Default: tau-b2032-shared
+    Description: Prefix for resource names.
+  PermissionsBoundary:
+    Type: String
+    Default: tmr-boundary-level3
+    Description: TMR permission boundary policy name (must exist in the account).
+  AllowUnauthenticatedIdentities:
+    Type: String
+    Default: 'true'
+    AllowedValues: ['true', 'false']
+    Description: Whether the identity pool allows guest (unauthenticated) access.
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    # Retain on stack delete so a teardown never destroys the shared user directory.
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub '${NamePrefix}-userpool'
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      MfaConfiguration: 'OFF'
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub '${NamePrefix}-client'
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      EnableTokenRevocation: true
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  IdentityPool:
+    Type: AWS::Cognito::IdentityPool
+    Properties:
+      IdentityPoolName: !Sub '${NamePrefix}-identitypool'
+      AllowUnauthenticatedIdentities: !Ref AllowUnauthenticatedIdentities
+      CognitoIdentityProviders:
+        - ClientId: !Ref UserPoolClient
+          ProviderName: !GetAtt UserPool.ProviderName
+          ServerSideTokenCheck: false
+
+  AuthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${NamePrefix}-authRole'
+      PermissionsBoundary: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${PermissionsBoundary}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': authenticated
+
+  UnauthenticatedRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${NamePrefix}-unauthRole'
+      PermissionsBoundary: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:policy/${PermissionsBoundary}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: cognito-identity.amazonaws.com
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'cognito-identity.amazonaws.com:aud': !Ref IdentityPool
+              'ForAnyValue:StringLike':
+                'cognito-identity.amazonaws.com:amr': unauthenticated
+
+  IdentityPoolRoleAttachment:
+    Type: AWS::Cognito::IdentityPoolRoleAttachment
+    Properties:
+      IdentityPoolId: !Ref IdentityPool
+      Roles:
+        authenticated: !GetAtt AuthenticatedRole.Arn
+        unauthenticated: !GetAtt UnauthenticatedRole.Arn
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+    Export: { Name: !Sub '${NamePrefix}-UserPoolId' }
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
+    Export: { Name: !Sub '${NamePrefix}-UserPoolClientId' }
+  IdentityPoolId:
+    Value: !Ref IdentityPool
+    Export: { Name: !Sub '${NamePrefix}-IdentityPoolId' }
+  AuthRoleArn:
+    Value: !GetAtt AuthenticatedRole.Arn
+    Export: { Name: !Sub '${NamePrefix}-AuthRoleArn' }
+  UnauthRoleArn:
+    Value: !GetAtt UnauthenticatedRole.Arn
+    Export: { Name: !Sub '${NamePrefix}-UnauthRoleArn' }
