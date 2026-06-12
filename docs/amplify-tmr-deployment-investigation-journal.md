@@ -264,12 +264,24 @@ SHARED_UNAUTH_ROLE_ARN     = arn:aws:iam::471112770810:role/tau-b2032-shared-una
 
 ---
 
-## 6. Operational gotcha — stuck rollbacks
+## 6. Operational gotchas
 
+### Stuck rollbacks
 A failed backend create leaves `ROLLBACK_FAILED`/`DELETE_FAILED` stacks because the asset
 S3 buckets aren't empty (their auto-delete Lambda never got created). To clean up: empty the
 buckets (all object versions + delete markers via `s3api delete-objects`), then
 `delete-stack` the root (it cascades), then delete the Amplify + git branches.
+
+### `npm ci` ETARGET on a brand-new AWS SDK version
+Rolling to `main` failed twice with:
+`npm error notarget No matching version found for @aws-sdk/token-providers@3.1066.0`
+— even though that version *does* exist in the registry, and the identical lockfile built
+fine on a fresh test branch minutes earlier. Cause: the `amplify.yml` `npm ci` used
+**`--prefer-offline`**, and `main`'s restored `.npm` cache (from older builds) held **stale
+package metadata** that predated the brand-new `@aws-sdk/*` transitive version. `--prefer-offline`
+trusted the stale metadata → "no matching version". **Fix:** drop `--prefer-offline`
+(`npm ci --cache .npm`) so npm always refreshes metadata. The `.npm` cache still speeds up
+tarball downloads. (The AWS SDK publishes many versions daily, so floating lockfiles hit this.)
 
 ---
 
