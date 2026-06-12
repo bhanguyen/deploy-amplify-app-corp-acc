@@ -3,7 +3,9 @@ backend:
   phases:
     build:
       commands:
-        - npm ci --cache .npm --prefer-offline
+        # No --prefer-offline: a stale .npm cache can lack metadata for brand-new
+        # transitive versions (e.g. @aws-sdk/*) and cause npm ci ETARGET failures.
+        - npm ci --cache .npm
         # ampx loads @parcel/watcher; a macOS-generated lockfile omits its Linux
         # prebuilt, so install the build host's binary (version-matched) explicitly.
         - npm install @parcel/watcher-linux-x64-glibc@$(node -p "require('@parcel/watcher/package.json').version") --no-save --no-audit --no-fund
