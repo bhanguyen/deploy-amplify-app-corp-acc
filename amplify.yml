@@ -4,6 +4,9 @@ backend:
     build:
       commands:
         - npm ci --cache .npm --prefer-offline
+        # ampx loads @parcel/watcher; a macOS-generated lockfile omits its Linux
+        # prebuilt, so install the build host's binary (version-matched) explicitly.
+        - npm install @parcel/watcher-linux-x64-glibc@$(node -p "require('@parcel/watcher/package.json').version") --no-save --no-audit --no-fund
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
 frontend:
   phases:
@@ -18,4 +21,3 @@ frontend:
     paths:
       - .next/cache/**/*
       - .npm/**/*
-      - node_modules/**/*
